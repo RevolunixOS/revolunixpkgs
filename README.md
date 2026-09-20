@@ -1,87 +1,85 @@
-[![Donate!][donate github]][github sponsors link]
+# RevolunixOS packages
 
-# My Custom Nixpkgs Overlay
+Combined Nix package set for the small desktop utilities maintained in the
+RevolunixOS organization. Packages are discovered recursively from `pkgs/` and
+injected into a configured Nixpkgs instance returned directly by the flake.
 
-This repository serves as a template for creating your own collection of custom
-Nix expressions, akin to what is done in `nixpkgs`. It includes a `default`
-overlay that exposes all custom packages, facilitating their integration into
-other projects.
+## Included packages
 
-## Usage
+The collection currently includes Rofi front ends for Bluetooth, Wi-Fi, audio,
+power, screenshots, music, and virtual machines, plus the `ide`, `backup-cli`,
+`font-fixer`, `global-fullscreen`, Citra, and related helper packages.
 
-### Setting Up
+## Use as a flake input
 
-1. Fork this repository.
-2. Begin adding packages to the `pkgs/by-name` directory. Follow the
-   same approach as adding packages in `nixpkgs`. Similar to [RFC140], packages
-   added in this directory will be automatically discovered.
-   - Create a new directory for each package.
-   - Inside each directory, create a `package.nix` file.
-3. Optionally, you can add packages directly to the `pkgs/` directory and
-   manually update the bindings in the `imports/pkgs-all.nix` file.
+```nix
+inputs.revolunixpkgs.url = "github:RevolunixOS/revolunixpkgs";
+```
 
-### Integrating Your Repository as an Overlay
+The current flake does not expose a conventional `overlays.default` output.
+Instead, the input itself is the configured package set:
 
-To use this repository as an overlay in another project, follow these steps:
+```nix
+outputs = { self, revolunixpkgs, ... }: {
+  nixosConfigurations.my-host = revolunixpkgs.purepkgs.lib.nixosSystem {
+    system = "x86_64-linux";
+    specialArgs.pkgs = revolunixpkgs;
+    modules = [
+      ({ ... }: {
+        environment.systemPackages = [
+          revolunixpkgs.rofi-bluetooth
+          revolunixpkgs.rofi-hyprshot
+          revolunixpkgs.rofi-power
+        ];
+      })
+    ];
+  };
+};
+```
 
-1. **Add the Repository as an Input**:
+Individual top-level package outputs can also be built directly, subject to the
+current flake layout:
 
-   Add the following to your `nix` file to include this repository as an input:
+```bash
+nix build github:RevolunixOS/revolunixpkgs#rofi-power
+```
 
-   ```nix
-   inputs = {
-       my-custom-nixpkgs.url = "repo-url";  # Replace "repo-url" with the actual URL to your repository
-   };
-   ```
+To inspect the exact attributes exported by a revision:
 
-2. **Include the Overlay in `pkgs`**:
+```bash
+nix flake show github:RevolunixOS/revolunixpkgs
+```
 
-   When constructing `pkgs`, include the overlay as follows:
+Because this output shape is non-standard, consumers may prefer to refactor the
+repository to expose conventional `packages`, `legacyPackages`, and
+`overlays.default` outputs.
 
-   ```nix
-   pkgs = import inputs.nixpkgs {
-     overlays = [
-       inputs.my-custom-nixpkgs.overlays.default
-     ];
-   };
-   ```
+## Development
 
-3. **Use Your Packages**:
+Each package lives in its own directory:
 
-   Access the packages in your project like this:
+```text
+pkgs/<name>/package.nix
+```
 
-   ```nix
-   buildInputs = [ pkgs.example1 pkgs.example2 ];
-   ```
+Run formatting and build the target output before opening a pull request:
 
-[RFC140]: https://github.com/NixOS/rfcs/pull/140
+```bash
+nix fmt
+nix build .#<package-name>
+```
 
-### Examples
+## Known limitations
 
-Refer to the dummy projects `example1` and `example2` for practical examples of
-how packages can be structured.
+- Inputs currently reference the legacy `RevoluNix` namespace for the module
+  repositories.
+- The internal overlay selects packages through a fixed `x86_64-linux` system
+  variable, even though a package set is calculated for several systems.
+- Most utilities were designed for one Hyprland workstation and are not yet
+  portable without review.
+- The primary Nixpkgs input is pinned to NixOS 24.05.
 
-## Going further
+## License
 
-- Use the continuous integration service of your choice to build and test your
-  packages
-- Add a binary cache to your repository to speed up builds and avoid
-  recompilation using [Cachix](https://cachix.org/)
-- This project uses a flake framework, we recommend to use [flake-parts](https://flake.parts)
-
-## Contributing
-
-Feel free to contribute by sending pull requests. We are a usually very
-responsive team and we will help you going through your pull request from the
-beginning to the end.
-
-For some reasons, if you can't contribute to the code and willing to help,
-sponsoring is a good, sound and safe way to show us some gratitude for the hours
-we invested in this package.
-
-Sponsor me on [Github][github sponsors link] and/or any of [the
-contributors][6].
-
-[donate github]: https://img.shields.io/badge/Sponsor-Github-brightgreen.svg?style=flat-square
-[github sponsors link]: https://github.com/sponsors/drupol
-[6]: https://github.com/drupol/my-own-nixpkgs/graphs/contributors
+See [`LICENSE`](LICENSE). Individual packaged projects may use their own
+licenses; consult their source and package metadata as well.
